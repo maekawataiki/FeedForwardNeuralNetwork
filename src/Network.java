@@ -1,4 +1,3 @@
-import java.util.LinkedList;
 import java.util.Random;
 import java.util.function.DoubleBinaryOperator;
 /**
@@ -13,7 +12,7 @@ public class Network {
 	Random rnd = new Random();
 	int num_layers;
 	int[] sizes;
-	LinkedList<double[][]> biases, weights;
+	float[][][] biases, weights;
 	
 	public Network(int[] sizes){
 		// The list "sizes" contains the number of neurons in the 
@@ -28,26 +27,26 @@ public class Network {
 		// ever used in computing the outputs from later layers.
 		this.num_layers = sizes.length;
 		this.sizes = sizes;
-		this.biases = new LinkedList<double[][]>();
-		for(int x = 1; x < this.num_layers; x++){
-			this.biases.add(gaussian_matrix(sizes[x], 1));
+		this.biases = new float[this.num_layers-1][][];
+		for(int x = 0; x < this.num_layers - 1; x++){
+			this.biases[x] = (gaussian_matrix(sizes[x+1], 1));
 		}
-		this.weights = new LinkedList<double[][]>();
+		this.weights = new float[this.num_layers-1][][];
 		for(int x = 0; x < this.num_layers-1; x++){
-			this.weights.add(gaussian_matrix(sizes[x+1], sizes[x]));
+			this.weights[x] = (gaussian_matrix(sizes[x+1], sizes[x]));
 		}
 	}
 	
-	public double[][] feedforward(double[][] a){
+	public float[][] feedforward(float[][] a){
 		// Return the output of the network if "a" is input
 		DoubleBinaryOperator d = (x, y) -> (x + y);
-		for(int x = 0; x < num_layers-1; x++){
-			a = sigmoid_vec(matrix_function(dot_product(weights.get(x), a), biases.get(x), d));
+		for(int x = 0; x < biases.length; x++){
+			a = sigmoid_vec(matrix_function(dot_product(weights[x], a), biases[x], d));
 		}
 		return a;
 	}
 	
-	public void SGD(Tuple[] training_data, int epochs, int mini_batch_size, double eta, Tuple[] test_data){
+	public void SGD(Tuple[] training_data, int epochs, int mini_batch_size, float eta, Tuple[] test_data){
 		// Train the neural network using mini-batch stochastic
 		// gradient descent. The "training_data" is a list of tuples
 		// "(x, y)" representing the training inputs and the desired
@@ -56,15 +55,17 @@ public class Network {
 		// network will be evaluated against the test data after each
 		// epoch, and partial progress printed out. This is useful for
 		// tracking progress, but slows things down substantially.
-		int n_test = (test_data!=null)? test_data.length : 0;
+		int n_test = (test_data != null)? test_data.length : 0;
 		int n = training_data.length;
 		for(int x = 0; x < epochs; x++){
 			shuffle(training_data);
 			Tuple[] mini_batch = new Tuple[mini_batch_size];
-			for(int y = 0; y < mini_batch_size; y++){
-				mini_batch[y] = training_data[x * mini_batch_size + y];
+			for(int y = 0; y < training_data.length / mini_batch_size; y++){
+				for(int z = 0; z < mini_batch_size; z++){
+					mini_batch[z] = training_data[y * mini_batch_size + z];
+				}
+				update_mini_batch(mini_batch, eta);
 			}
-			update_mini_batch(mini_batch, eta);
 			if(test_data!=null){
 				System.out.println("Epoch " + x + ": " + evaluate(test_data) + " / " + n_test);
 			}else{
@@ -73,68 +74,60 @@ public class Network {
 		}
 	}
 	
-	public void update_mini_batch(Tuple[] mini_batch, double eta){
+	public void update_mini_batch(Tuple[] mini_batch, float eta){
 		// Update the network's weights and biases by applying 
 		// gradient descent using back propagation to a single mini batch.
 		// The "mini_batch" is a list of tuples"(x, y)", and "eta"
 		// is the learning rate
-		LinkedList<double[][]> nabla_b = zero_matrixes(biases);
-		LinkedList<double[][]> nabla_w = zero_matrixes(weights);
+		float[][][] nabla_b = zero_matrixes(biases);
+		float[][][] nabla_w = zero_matrixes(weights);
 		DoubleBinaryOperator d = (x, y) -> (x+y);
 		for(int x = 0; x < mini_batch.length; x++){
-			Tuple result = backprop((double[][])mini_batch[x].getA(), (int)mini_batch[x].getB());
-			LinkedList<double[][]> delta_nabla_b = (LinkedList<double[][]>)result.getA();
-			LinkedList<double[][]> delta_nabla_w = (LinkedList<double[][]>)result.getB();
+			Tuple result = backprop((float[][])mini_batch[x].getA(), (int)mini_batch[x].getB());
+			float[][][] delta_nabla_b = (float[][][])result.getA();
+			float[][][] delta_nabla_w = (float[][][])result.getB();
 			for(int y = 0; y < num_layers-1; y++){
-				nabla_b.add(y, matrix_function(nabla_b.get(y), delta_nabla_b.get(y), d));
-				nabla_b.remove(y+1);
-				nabla_w.add(y, matrix_function(nabla_w.get(y), delta_nabla_w.get(y), d));
-				nabla_w.remove(y+1);
+				nabla_b[y] = matrix_function(nabla_b[y], delta_nabla_b[y], d);
+				nabla_w[y] = matrix_function(nabla_w[y], delta_nabla_w[y], d);
 			}
 		}
 		d = (x, y) -> (x-(eta/mini_batch.length)*y);
 		for(int x = 0; x < num_layers-1; x++){
-			weights.add(x, matrix_function(weights.get(x), nabla_w.get(x), d));
-			weights.remove(x+1);
-			biases.add(x, matrix_function(biases.get(x), nabla_b.get(x), d));
-			biases.remove(x+1);
+			weights[x] = matrix_function(weights[x], nabla_w[x], d);
+			biases[x] = matrix_function(biases[x], nabla_b[x], d);
 		}
 	}
 	
-	public Tuple backprop(double[][] x, int y){
+	public Tuple backprop(float[][] x, int y){
 		// Return a tuple "(nabla_b, nabla_w)" representing the
 		// gradient for the cost function C_x. "nabla_b" and 
 		// "nabla_w" are layer-by-layer lists of arrays
-		LinkedList<double[][]> nabla_b = zero_matrixes(biases);
-		LinkedList<double[][]> nabla_w = zero_matrixes(weights);
+		float[][][] nabla_b = zero_matrixes(biases);
+		float[][][] nabla_w = zero_matrixes(weights);
 		// feed forward
-		double[][] activation = x;
-		LinkedList<double[][]> activations = new LinkedList<double[][]>(); // list to store all the activations, layer by layer
-		activations.add(x);
-		LinkedList<double[][]> zs = new LinkedList<double[][]>(); // list to store all the z vectors, layer by layer
+		float[][] activation = x;
+		float[][][] activations = new float[this.num_layers][][]; // list to store all the activations, layer by layer
+		activations[0] = x;
+		float[][][] zs = new float[this.num_layers-1][][]; // list to store all the z vectors, layer by layer
 		DoubleBinaryOperator d = (m, n) -> (m + n);
 		for(int a = 0; a < num_layers-1; a++){
-			double[][] z = matrix_function(dot_product(weights.get(a), activation), biases.get(a), d);
-			zs.add(z);
+			float[][] z = matrix_function(dot_product(weights[a], activation), biases[a], d);
+			zs[a] = z;
 			activation = sigmoid_vec(z);
-			activations.add(activation);
+			activations[a+1] = activation;
 		}
 		// backward pass
 		d = (a, b) -> (a * b);
-		double[][] delta = matrix_function(cost_derivative(activations.get(num_layers-1), y), 
-				sigmoid_prime_vec(zs.getLast()), d);
-		nabla_b.removeLast();
-		nabla_b.add(delta);
-		nabla_w.removeLast();
-		nabla_w.add(dot_product(delta, transpose(activations.get(num_layers-2))));
+		float[][] delta = matrix_function(cost_derivative(activations[activations.length-1], y), 
+				sigmoid_prime_vec(zs[zs.length-1]), d);
+		nabla_b[nabla_b.length-1] = delta;
+		nabla_w[nabla_w.length-1] = dot_product(delta, transpose(activations[activations.length-2]));
 		for(int l = 2; l < num_layers; l++){
-			double[][] z = zs.get(num_layers-l-1);
-			double[][] spv = sigmoid_prime_vec(z);
-			delta = matrix_function(dot_product(transpose(weights.get(num_layers-l)), delta), spv, d);
-			nabla_b.add(num_layers - l - 1, delta);
-			nabla_b.remove(num_layers - l);
-			nabla_w.add(num_layers - l - 1, dot_product(delta, transpose(activations.get(num_layers - l - 1))));
-			nabla_w.remove(num_layers - l);
+			float[][] z = zs[zs.length-l];
+			float[][] spv = sigmoid_prime_vec(z);
+			delta = matrix_function(dot_product(transpose(weights[weights.length-l+1]), delta), spv, d);
+			nabla_b[nabla_b.length-l] = delta;
+			nabla_w[nabla_w.length-l] = dot_product(delta, transpose(activations[activations.length-l-1]));
 		}
 		Tuple result = new Tuple(nabla_b, nabla_w);;
 		return result;
@@ -147,28 +140,28 @@ public class Network {
 		// neuron in the final layer has the highest activation.
 		int result = 0;
 		for(int x = 0; x < test_data.length; x++){
-			if(argmax(feedforward((double[][])test_data[x].getA())) == (int)test_data[x].getB())
+			if(argmax(feedforward((float[][])test_data[x].getA())) == (int)test_data[x].getB())
 				result++;
 		}
 		return result;
 	}
 	
-	public double[][] cost_derivative(double[][] output_activations, int y){
+	public float[][] cost_derivative(float[][] output_activations, int y){
 		// Return the vector of partial derivatives \partial C_x /
 		// \partial a for the output activations.
-		double[][] result = new double[output_activations.length][1];
+		float[][] result = new float[output_activations.length][1];
 		result[y][0] = output_activations[y][0]-1;
 		return result;
 	}
 	
 	//****Miscellaneous functions****************************************************
 	
-	private double sigmoid(double z){
+	private float sigmoid(float z){
 		//The sigmoid function
-		return 1.0/(1.0+Math.exp(-z));
+		return (float) (1.0/(1.0+Math.exp(-z)));
 	}
 	
-	private double[][] sigmoid_vec(double[][] z){
+	private float[][] sigmoid_vec(float[][] z){
 		for(int x = 0; x < z.length; x++){
 			for(int y = 0; y < z[0].length; y++){
 				z[x][y] = sigmoid(z[x][y]);
@@ -177,12 +170,12 @@ public class Network {
 		return z;
 	}
 	
-	private double sigmoid_prime(double z){
+	private float sigmoid_prime(float z){
 		// Derivative of the sigmoid function
 		return sigmoid(z)*(1-sigmoid(z));
 	}
 	
-	private double[][] sigmoid_prime_vec(double[][] z){
+	private float[][] sigmoid_prime_vec(float[][] z){
 		for(int x = 0; x < z.length; x++){
 			for(int y = 0; y < z[0].length; y++){
 				z[x][y] = sigmoid_prime(z[x][y]);
@@ -191,19 +184,19 @@ public class Network {
 		return z;
 	}
 	
-	private double[][] gaussian_matrix(int r, int c){
-		double[][] m = new double[r][c];
+	private float[][] gaussian_matrix(int r, int c){
+		float[][] m = new float[r][c];
 		for(int x = 0; x < m.length; x++){
 			for(int y = 0; y < m[0].length; y++){
-				m[x][y] = rnd.nextGaussian();
+				m[x][y] = (float)rnd.nextGaussian();
 			}
 		}
 		return m;
 	}
 	
-	private double[][] dot_product(double[][] x, double[][] y){
+	private float[][] dot_product(float[][] x, float[][] y){
 		if(x[0].length != y.length) System.err.println("Error: Dot Product");
-		double[][] result = new double[x.length][y[0].length];
+		float[][] result = new float[x.length][y[0].length];
 		for(int a = 0; a < x.length; a++){
 			for(int b = 0; b < y[0].length; b++){
 				for(int c = 0; c < y.length; c++){
@@ -214,20 +207,20 @@ public class Network {
 		return result;
 	}
 	
-	private double[][] matrix_function(double[][] x, double[][] y, DoubleBinaryOperator d){
+	private float[][] matrix_function(float[][] x, float[][] y, DoubleBinaryOperator d){
 		if(x.length != y.length || x[0].length != y[0].length)
 			System.err.println("Error: Matrix Function");
-		double[][] sum = new double[x.length][x[0].length];
+		float[][] sum = new float[x.length][x[0].length];
 		for(int a = 0; a < sum.length; a++){
 			for(int b = 0; b < sum[0].length; b++){
-				sum[a][b] = d.applyAsDouble(x[a][b], y[a][b]);
+				sum[a][b] = (float) d.applyAsDouble(x[a][b], y[a][b]);
 			}
 		}
 		return sum;
 	}
 	
-	private double[][] transpose(double[][] m){
-		double result[][] = new double[m[0].length][m.length];
+	private float[][] transpose(float[][] m){
+		float result[][] = new float[m[0].length][m.length];
 		for(int x = 0; x < m.length; x++){
 			for(int y = 0; y < m[0].length; y++){
 				result[y][x] = m[x][y];
@@ -236,9 +229,9 @@ public class Network {
 		return result;
 	}
 	
-	private int argmax(double[][] x){
+	private int argmax(float[][] x){
 		int result = -1;
-		double so_far = -1;
+		float so_far = -1;
 		for(int a = 0; a < x.length; a++){
 			if(x[a][0] > so_far){
 				result = a;
@@ -249,20 +242,19 @@ public class Network {
 	}
 	
 	private void shuffle (Tuple[] array){
-		// Shuffle by Fisher-Yates shuffle
 		Random rnd = new Random();
-		for(int i = array.length - 1; i > 0; i--){
-			int index = rnd.nextInt(i+1);
-			Tuple a = array[index];
-			array[index] = array[i];
+		for(int i = 0; i < array.length; i++){
+			int index = rnd.nextInt(array.length - i);
+			Tuple a = array[index + i];
+			array[index + i] = array[i];
 			array[i] = a;
 		}
 	}
 	
-	private LinkedList<double[][]> zero_matrixes(LinkedList<double[][]> m){
-		LinkedList<double[][]> result = new LinkedList<double[][]>();
-		for(int x = 0; x < num_layers-1; x++){
-			result.add(new double[m.get(x).length][m.get(x)[0].length]);
+	private float[][][] zero_matrixes(float[][][] m){
+		float[][][] result = new float[m.length][][];
+		for(int x = 0; x < m.length; x++){
+			result[x] = new float[m[x].length][m[x][0].length];
 		}
 		return result;
 	}

@@ -1,5 +1,4 @@
 import java.io.*;
-import java.util.LinkedList;
 
 public class MNISTHandWritten {
 
@@ -11,18 +10,18 @@ public class MNISTHandWritten {
 	
 	public static void main(String[] args) {
 		MNISTHandWritten train = new MNISTHandWritten();
-		train.MNISTReader("train_labels.idx1-ubyte", "train_images.idx3-ubyte");
+		train.MNISTReader("train_labels.idx1-ubyte", "train_images.idx3-ubyte", 30000);
 		MNISTHandWritten test = new MNISTHandWritten();
-		test.MNISTReader("t10k_labels.idx1-ubyte", "t10k_images.idx3-ubyte");
-		int[] sizes = {784, 100, 10};
+		test.MNISTReader("t10k_labels.idx1-ubyte", "t10k_images.idx3-ubyte", 500);
+		int[] sizes = {784, 30, 10};
 		Network net = new Network(sizes);
-		net.SGD(train.data, 30, 10, 3.0, test.data);
+		net.SGD(train.data, 30, 10, (float)3.0, test.data);
 	}
 	
 	public MNISTHandWritten(){
 	}
 
-	public void MNISTReader(String labelFilename, String imageFilename) {
+	public void MNISTReader(String labelFilename, String imageFilename, int size) {
 		try {
 			DataInputStream labels = new DataInputStream(new FileInputStream(labelFilename));
 			DataInputStream images = new DataInputStream(new FileInputStream(imageFilename));
@@ -47,6 +46,9 @@ public class MNISTHandWritten {
 				str.append("  Image file contains: " + numImages + "\n");
 				System.err.println(str.toString());
 			}
+			if (this.numLabels < size){
+				System.err.println("do not have enough data");
+			}
 			// read data
 			byte[] labelsData = new byte[numLabels];
 			labels.read(labelsData);
@@ -54,13 +56,13 @@ public class MNISTHandWritten {
 			byte[] imagesData = new byte[numLabels * imageVectorSize];
 			images.read(imagesData);
 			// translate
-			this.data = new Tuple[this.numLabels];
+			this.data = new Tuple[size];
 			int imageIndex = 0;
-			for(int i = 0; i < this.numLabels; i++) {
+			for(int i = 0; i < size; i++) {
 				int label = labelsData[i];
-				double[][] inputData = new double[imageVectorSize][1];
+				float[][] inputData = new float[imageVectorSize][1];
 				for(int j = 0; j < imageVectorSize; j++) {
-					inputData[j][0] = Math.ceil((double)(imagesData[imageIndex++]&0xff) / 255.0);
+					inputData[j][0] = (float) Math.ceil((float)(imagesData[imageIndex++]&0xff) / 255.0);
 				}
 				this.data[i] = new Tuple(inputData, label);
 			}
