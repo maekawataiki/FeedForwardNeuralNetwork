@@ -10,12 +10,18 @@ public class MNISTHandWritten {
 	
 	public static void main(String[] args) {
 		MNISTHandWritten train = new MNISTHandWritten();
-		train.MNISTReader("train_labels.idx1-ubyte", "train_images.idx3-ubyte", 30000);
+		train.MNISTReader("train_labels.idx1-ubyte", "train_images.idx3-ubyte", 40000);
+		/*for(int x = 0; x < train.numRows; x++){
+			for(int y = 0; y < train.numCols; y++){
+				System.out.print(((((float[][])train.getData()[0].getA())[x*train.numRows+y][0]) == 0)? " " : "@");
+			}
+			System.out.println();
+		}*/
 		MNISTHandWritten test = new MNISTHandWritten();
-		test.MNISTReader("t10k_labels.idx1-ubyte", "t10k_images.idx3-ubyte", 500);
-		int[] sizes = {784, 30, 10};
+		test.MNISTReader("t10k_labels.idx1-ubyte", "t10k_images.idx3-ubyte", 1000);
+		int[] sizes = {784, 50, 50, 10};
 		Network net = new Network(sizes);
-		net.SGD(train.data, 30, 10, (float)3.0, test.data);
+		net.SGD(train.data, 30, 10, (float)5.0, test.data);
 	}
 	
 	public MNISTHandWritten(){
@@ -62,7 +68,7 @@ public class MNISTHandWritten {
 				int label = labelsData[i];
 				float[][] inputData = new float[imageVectorSize][1];
 				for(int j = 0; j < imageVectorSize; j++) {
-					inputData[j][0] = (float) Math.ceil((float)(imagesData[imageIndex++]&0xff) / 255.0);
+					inputData[j][0] = (float) (imagesData[imageIndex++]&0xff);
 				}
 				this.data[i] = new Tuple(inputData, label);
 			}

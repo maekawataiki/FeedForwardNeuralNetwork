@@ -25,6 +25,7 @@ public class Network {
 		// layer is assumed to be an input layer, and by convention we
 		// won't set any biases for those neurons, since biases are only
 		// ever used in computing the outputs from later layers.
+		System.out.println("Setting up...");
 		this.num_layers = sizes.length;
 		this.sizes = sizes;
 		this.biases = new float[this.num_layers-1][][];
@@ -58,6 +59,7 @@ public class Network {
 		int n_test = (test_data != null)? test_data.length : 0;
 		int n = training_data.length;
 		for(int x = 0; x < epochs; x++){
+			System.out.print("Start Epoch " + x + "...");
 			shuffle(training_data);
 			Tuple[] mini_batch = new Tuple[mini_batch_size];
 			for(int y = 0; y < training_data.length / mini_batch_size; y++){
@@ -81,7 +83,7 @@ public class Network {
 		// is the learning rate
 		float[][][] nabla_b = zero_matrixes(biases);
 		float[][][] nabla_w = zero_matrixes(weights);
-		DoubleBinaryOperator d = (x, y) -> (x+y);
+		DoubleBinaryOperator d = (x, y) -> (x + y);
 		for(int x = 0; x < mini_batch.length; x++){
 			Tuple result = backprop((float[][])mini_batch[x].getA(), (int)mini_batch[x].getB());
 			float[][][] delta_nabla_b = (float[][][])result.getA();
@@ -172,7 +174,8 @@ public class Network {
 	
 	private float sigmoid_prime(float z){
 		// Derivative of the sigmoid function
-		return sigmoid(z)*(1-sigmoid(z));
+		float sigz = sigmoid(z);
+		return sigz*(1-sigz);
 	}
 	
 	private float[][] sigmoid_prime_vec(float[][] z){
@@ -242,11 +245,10 @@ public class Network {
 	}
 	
 	private void shuffle (Tuple[] array){
-		Random rnd = new Random();
 		for(int i = 0; i < array.length; i++){
-			int index = rnd.nextInt(array.length - i);
-			Tuple a = array[index + i];
-			array[index + i] = array[i];
+			int index = (int) Math.floor(Math.random() * (i + 1));
+			Tuple a = array[index];
+			array[index] = array[i];
 			array[i] = a;
 		}
 	}
